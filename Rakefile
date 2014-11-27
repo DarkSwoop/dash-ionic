@@ -35,14 +35,13 @@ class Generator
 
   end
 
-  def initialize(resources_path, file_path, section_selector, link_selector, default_type=nil)
+  def initialize(database_path, file_path, section_selector, link_selector, default_type=nil)
     @file_path        = file_path
     @page             = Nokogiri::HTML(open(file_path))
     @section_selector = section_selector
     @link_selector    = link_selector
     @default_type     = default_type
-    @db               = SQLite3::Database.new "#{resources_path}/docSet.dsidx"
-    @resources_path   = resources_path
+    @db               = SQLite3::Database.new database_path
     setup_database
   end
 
@@ -66,7 +65,7 @@ class Generator
   end
 
   def build_css_tree
-    page = Nokogiri::HTML(open("#{@resources_path}/Documents/docs/components/index.html"))
+    page = Nokogiri::HTML(open("compiled/docs/components/index.html"))
     sections = page.css("section.docs-section")
     sections.each do |node|
 
@@ -81,7 +80,7 @@ class Generator
       end
     end
 
-    File.open("#{@resources_path}/Documents/docs/components/index.html", "w") do |f|
+    File.open("compiled/docs/components/index.html", "w") do |f|
       f.write(page.to_html)
     end
   end
@@ -96,8 +95,9 @@ class Generator
   end
 
   def create_entry(name, type, path)
-    path.gsub!(/^\//, '')
+    return if /\/?#/.match(path)
     path.gsub!("/#", "/index.html#")
+    path.gsub!(/^\//, '')
     @db.execute "INSERT OR IGNORE INTO searchIndex(name, type, path) VALUES ( ?, ?, ?)", [name, type, path]
   end
 
@@ -120,7 +120,7 @@ class PathFix
     @root_path = root_path
   end
 
-  def fix_paths
+  def make_paths_relative
     paths = Dir["#{@root_path}/**/*.html"]
     root_layers = @root_path.split("/").size
     paths.each do |path|
@@ -136,6 +136,18 @@ class PathFix
       content.gsub!(/value="\//, "value=\"#{"../" * layers}")
 
       content.gsub!(/href=".*?\/#/, "href=\"#")
+
+      File.open(path, "w+") do |f|
+        f.write content
+      end
+    end
+  end
+
+  def complete_folder_references
+    paths = Dir["#{@root_path}/**/*.html"]
+    paths.each do |path|
+      content = File.read(path)
+
       content.gsub!(/\/"/, "\/index.html\"")
 
       File.open(path, "w+") do |f|
@@ -169,12 +181,13 @@ namespace :docset do
                       :update_ionic_site,
                       :compile_ionic_site,
                       :create,
+                      :complete_folder_references,
+                      :generate_docset_database,
                       :copy_ionic_docs,
-                      :fix_paths,
+                      :make_paths_relative,
                       :cdn_to_static,
                       :fix_site_js,
-                      :copy_static_files,
-                      :generate_docset_database
+                      :copy_static_files
                     ]
 
   desc "cleanup"
@@ -235,8 +248,13 @@ namespace :docset do
   end
 
   desc "fixes the css and image paths"
-  task :fix_paths do
-    PathFix.new("#{resources_path}/Documents").fix_paths
+  task :make_paths_relative do
+    PathFix.new("#{resources_path}/Documents").make_paths_relative
+  end
+
+  desc "completes href references to folders with index.html"
+  task :complete_folder_references do
+    PathFix.new("compiled").complete_folder_references
   end
 
   desc "replaces cdn files with local files"
@@ -267,7 +285,7 @@ namespace :docset do
   task :generate_docset_database do
     sections_selector = ".menu-section a.api-section"
     link_selector     = ".menu-section ul a"
-    js_generator = Generator.new(resources_path, "compiled/docs/nightly/index.html", sections_selector, link_selector)
+    js_generator = Generator.new("#{resources_path}/docSet.dsidx", "compiled/docs/nightly/index.html", sections_selector, link_selector)
     js_generator.parse
     js_generator.create_css_entry
     js_generator.build_css_tree
