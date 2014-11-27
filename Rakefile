@@ -4,17 +4,11 @@ require 'json'
 require 'uri'
 Bundler.require :default
 
+docset_root = "dist/Ionic.docset"
+resources_path = "#{docset_root}/Contents/Resources"
+
 class Generator
   class Link
-    # MAPPING = {
-    #   "service" => 'Service',
-    #   "directive" => 'Directive',
-    #   "controller" => 'Module',
-    #   "provider" => 'Provider',
-    #   "utility" => 'Builtin',
-    #   "object" => 'Option',
-    #   "page" => 'Plugin'
-    # }
     MAPPING = {
       "service" => 'Service',
       "directive" => 'Directive',
@@ -41,13 +35,14 @@ class Generator
 
   end
 
-  def initialize(file_path, section_selector, link_selector, default_type=nil)
+  def initialize(resources_path, file_path, section_selector, link_selector, default_type=nil)
     @file_path        = file_path
     @page             = Nokogiri::HTML(open(file_path))
     @section_selector = section_selector
     @link_selector    = link_selector
     @default_type     = default_type
-    @db               = SQLite3::Database.new "dist/ionicframework.docset/Contents/Resources/docSet.dsidx"
+    @db               = SQLite3::Database.new "#{resources_path}/docSet.dsidx"
+    @resources_path   = resources_path
     setup_database
   end
 
@@ -71,7 +66,7 @@ class Generator
   end
 
   def build_css_tree
-    page = Nokogiri::HTML(open("dist/ionicframework.docset/Contents/Resources/Documents/docs/components/index.html"))
+    page = Nokogiri::HTML(open("#{@resources_path}/Documents/docs/components/index.html"))
     sections = page.css("section.docs-section")
     sections.each do |node|
 
@@ -86,7 +81,7 @@ class Generator
       end
     end
 
-    File.open("dist/ionicframework.docset/Contents/Resources/Documents/docs/components/index.html", "w") do |f|
+    File.open("#{@resources_path}/Documents/docs/components/index.html", "w") do |f|
       f.write(page.to_html)
     end
   end
@@ -178,7 +173,7 @@ namespace :docset do
                       :fix_paths,
                       :cdn_to_static,
                       :fix_site_js,
-                      :copy_info_plist,
+                      :copy_static_files,
                       :generate_docset_database
                     ]
 
@@ -207,12 +202,12 @@ namespace :docset do
 
   desc "creates the docset"
   task :create do
-    FileUtils.mkdir_p("dist/ionicframework.docset/Contents/Resources/Documents")
+    FileUtils.mkdir_p("#{resources_path}/Documents")
   end
 
   desc "copies the bare ionic html documentation"
   task :copy_ionic_docs do
-    dist = "dist/ionicframework.docset/Contents/Resources/Documents"
+    dist = "#{resources_path}/Documents"
     FileUtils.mkdir_p("#{dist}/img")
     {
       "index.html" => ".",
@@ -234,19 +229,20 @@ namespace :docset do
   end
 
   desc "copies Info.plist into the docset"
-  task :copy_info_plist do
-    FileUtils.cp("Info.plist", "dist/ionicframework.docset/Contents/")
+  task :copy_static_files do
+    FileUtils.cp("Info.plist", "#{docset_root}/Contents/")
+    FileUtils.cp("icon.png", "#{docset_root}")
   end
 
   desc "fixes the css and image paths"
   task :fix_paths do
-    PathFix.new("dist/ionicframework.docset/Contents/Resources/Documents").fix_paths
+    PathFix.new("#{resources_path}/Documents").fix_paths
   end
 
   desc "replaces cdn files with local files"
   task :cdn_to_static do
-    FileUtils.cp_r("cdn", "dist/ionicframework.docset/Contents/Resources/Documents")
-    PathFix.new("dist/ionicframework.docset/Contents/Resources/Documents").cdn_to_statics({
+    FileUtils.cp_r("cdn", "#{resources_path}/Documents")
+    PathFix.new("#{resources_path}/Documents").cdn_to_statics({
       'http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js' => 'cdn/jquery.min.js',
       'http://netdna.bootstrapcdn.com/bootstrap/3.0.2/js/bootstrap.min.js' => 'cdn/bootstrap.min.js',
       'http://cdnjs.cloudflare.com/ajax/libs/Cookies.js/0.4.0/cookies.min.js' => 'cdn/cookies.min.js',
@@ -256,13 +252,13 @@ namespace :docset do
 
   desc "fixes the site.js script"
   task :fix_site_js do
-    site_js = File.read("dist/ionicframework.docset/Contents/Resources/Documents/js/site.js")
+    site_js = File.read("#{resources_path}/Documents/js/site.js")
 
     pathname = "window.location.pathname.replace(/^.*?Contents\\/Resources\\/Documents/, '')"
 
     site_js.gsub!("[href=\"' + window.location.pathname", "[href*=\"' + #{pathname}")
 
-    File.open("dist/ionicframework.docset/Contents/Resources/Documents/js/site.js", "w+") do |f|
+    File.open("#{resources_path}/Documents/js/site.js", "w+") do |f|
       f.write site_js
     end
   end
@@ -271,7 +267,7 @@ namespace :docset do
   task :generate_docset_database do
     sections_selector = ".menu-section a.api-section"
     link_selector     = ".menu-section ul a"
-    js_generator = Generator.new("compiled/docs/nightly/index.html", sections_selector, link_selector)
+    js_generator = Generator.new(resources_path, "compiled/docs/nightly/index.html", sections_selector, link_selector)
     js_generator.parse
     js_generator.create_css_entry
     js_generator.build_css_tree
