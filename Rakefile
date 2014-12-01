@@ -143,6 +143,21 @@ class PathFix
     end
   end
 
+  def make_paths_relative_for_root_path(prefix="")
+    content = File.read(@root_path)
+
+    content.gsub!('href="/', "href=\"#{prefix}")
+    content.gsub!('src="/', "src=\"#{prefix}")
+    content.gsub!('value="/', "value=\"#{prefix}")
+    content.gsub!("url('/", "url('#{prefix}")
+    content.gsub!(/url\(\/(.*?)\)/, "url('#{prefix}" + '\1' + "')")
+    content.gsub!('url("/', "url(\"#{prefix}")
+
+    File.open(@root_path, "w+") do |f|
+      f.write content
+    end
+  end
+
   def complete_folder_references
     paths = Dir["#{@root_path}/**/*.html"]
     paths.each do |path|
@@ -152,6 +167,18 @@ class PathFix
 
       File.open(path, "w+") do |f|
         f.write content
+      end
+    end
+  end
+
+  def remove_codepen_references
+    paths = Dir["#{@root_path}/**/*.html"]
+    paths.each do |path|
+      page = Nokogiri::HTML(open(path))
+      page.css(".phone-case").remove
+
+      File.open(path, "w+") do |f|
+        f.write page.to_html
       end
     end
   end
@@ -182,7 +209,9 @@ namespace :docset do
                       :compile_ionic_site,
                       :create,
                       :complete_folder_references,
+                      :remove_codepen_references,
                       :generate_docset_database,
+                      :fix_href_in_main_index,
                       :copy_ionic_docs,
                       :make_paths_relative,
                       :cdn_to_static,
@@ -223,18 +252,23 @@ namespace :docset do
     dist = "#{resources_path}/Documents"
     FileUtils.mkdir_p("#{dist}/img")
     {
-      "index.html" => ".",
-      "css/." => "css",
-      "data/." => "data",
-      "js/." => "js",
-      "fonts/." => "fonts",
-      "img/docs/." => "img/docs",
-      "img/getting-started/." => "img/getting-started",
-      "img/input-types/." => "img/input-types",
-      "getting-started/." => "getting-started",
-      "docs/." => "docs",
+      "index.html" => "",
+      "css" => "",
+      "data" => "",
+      "js" => "",
+      "fonts" => "",
+      "img/docs" => "img",
+      "img/getting-started" => "img",
+      "img/input-types" => "img",
+      "img/*.png" => "img",
+      "img/*.jpg" => "img",
+      "img/*.svg" => "img",
+      "img/testimonials" => "img",
+      "img/homepage" => "img",
+      "getting-started" => "",
+      "docs" => "",
     }.each_pair do |src,dest|
-      FileUtils.cp_r("compiled/#{src}", "#{dist}/#{dest}")
+      FileUtils.cp_r(Dir.glob("compiled/#{src}"), "#{dist}/#{dest}")
     end
     Dir["compiled/img/*.png", "compiled/img/*.svg"].each do |path|
       FileUtils.cp_r(path, "#{dist}/img/.")
@@ -255,6 +289,17 @@ namespace :docset do
   desc "completes href references to folders with index.html"
   task :complete_folder_references do
     PathFix.new("compiled").complete_folder_references
+  end
+
+  desc "completes href references to folders with index.html"
+  task :remove_codepen_references do
+    PathFix.new("compiled").remove_codepen_references
+  end
+
+  desc "fix href references in main index.html"
+  task :fix_href_in_main_index do
+    PathFix.new("compiled/index.html").make_paths_relative_for_root_path
+    PathFix.new("compiled/css/site.css").make_paths_relative_for_root_path("../")
   end
 
   desc "replaces cdn files with local files"

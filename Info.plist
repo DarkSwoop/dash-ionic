@@ -9,7 +9,7 @@
   <key>DocSetPlatformFamily</key>
   <string>ionic</string>
   <key>dashIndexFilePath</key>
-  <string>index.html</string>
+  <string>docs/overview/index.html</string>
 	<key>isDashDocset</key>
   <true/>
   <key>isJavaScriptEnabled</key>
