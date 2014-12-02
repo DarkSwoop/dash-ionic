@@ -98,7 +98,7 @@ class Generator
     return if /\/?#/.match(path)
     path.gsub!("/#", "/index.html#")
     path.gsub!(/^\//, '')
-    @db.execute "INSERT OR IGNORE INTO searchIndex(name, type, path) VALUES ( ?, ?, ?)", [name, type, path]
+    @db.execute "INSERT OR IGNORE INTO searchIndex(name, type, path) VALUES ( ?, ?, ?)", [name, type, URI.unescape(path)]
   end
 
   def collect_links(selector, type=nil)
