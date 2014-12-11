@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleIdentifier</key>
-	<string>ionicframework</string>
+	<string>ionic</string>
 	<key>CFBundleName</key>
-	<string>Ionic Framework</string>
+	<string>Ionic</string>
   <key>DocSetPlatformFamily</key>
   <string>ionic</string>
   <key>dashIndexFilePath</key>
