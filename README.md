@@ -1,4 +1,10 @@
-# Ionic docset generator for dash
+# THIS REPO NOT LONGER SUPPORTED!
+
+Please use the new official version provided by Dash.
+
+---
+
+## Ionic docset generator for dash
 
 Prerequisites: ruby, bundler
 
